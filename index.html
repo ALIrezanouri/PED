@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>داشبورد کشش قیمتی تقاضا | Price Elasticity of Demand Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#243349; --text:#e2e8f0;
+    --muted:#94a3b8; --accent:#3b82f6; --accent2:#60a5fa;
+    --border:#334155; --red:#ef4444; --green:#22c55e; --yellow:#eab308;
+    --radius:14px; --shadow:0 4px 18px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);font-family:'Vazirmatn',system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased}
+  body{padding:24px;max-width:1920px;margin:0 auto}
+  a{color:var(--accent2)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#475569}
+
+  /* Header */
+  header.app-header{background:linear-gradient(135deg,#1e293b,#0f172a);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;margin-bottom:24px;box-shadow:var(--shadow)}
+  .header-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px}
+  .title-block h1{font-size:1.85rem;font-weight:800;color:#f8fafc;margin-bottom:4px}
+  .title-block .subtitle{font-size:.95rem;color:var(--muted);direction:ltr;text-align:right;font-weight:500}
+  .meta-block{display:flex;flex-direction:column;gap:6px;font-size:.85rem;color:var(--muted);text-align:left;direction:ltr}
+  .meta-block .meta-item{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+  .meta-block .tag{background:var(--accent);color:#fff;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:600;direction:ltr}
+
+  /* Loading & Error */
+  #loader,#error-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:18px}
+  .spinner{width:54px;height:54px;border:5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #error-state{color:#fca5a5;display:none}
+  #error-state .err-icon{font-size:2.5rem}
+  .file-input-wrap{background:var(--card);border:1px dashed var(--accent);border-radius:var(--radius);padding:18px 24px;text-align:center}
+  .file-input-wrap input[type=file]{margin-top:10px;color:var(--text)}
+  .file-input-wrap input[type=file]::file-selector-button{background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-family:inherit;margin-left:8px}
+
+  /* Main content hidden until loaded */
+  #app{display:none}
+
+  /* KPI strip */
+  .kpi-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:16px;margin-bottom:24px}
+  .kpi-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;transition:transform .15s ease,border-color .15s ease;cursor:default}
+  .kpi-card:hover{transform:translateY(-3px);border-color:var(--accent)}
+  .kpi-value{font-size:2rem;font-weight:800;direction:ltr;text-align:right;line-height:1.2}
+  .kpi-label{font-size:.8rem;color:var(--muted);margin-top:6px;font-weight:500}
+  .kpi-sub{font-size:.7rem;color:var(--muted);direction:ltr;text-align:right;opacity:.8;margin-top:2px}
+  .kpi-red{color:var(--red)} .kpi-green{color:var(--green)} .kpi-accent{color:var(--accent2)}
+
+  /* Generic section card */
+  .section-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px;margin-bottom:24px;box-shadow:var(--shadow)}
+  .section-title{display:flex;align-items:center;gap:10px;font-size:1.2rem;font-weight:700;color:#f8fafc;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .section-title .icon{width:8px;height:22px;background:var(--accent);border-radius:4px;display:inline-block}
+  .section-desc{font-size:.82rem;color:var(--muted);margin-bottom:14px}
+
+  /* Charts grid */
+  .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
+  .chart-grid.full{grid-template-columns:1fr}
+  .chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .chart-container{width:100%;min-height:380px;direction:ltr}
+
+  /* Filters panel */
+  .filters-panel{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .filter-group{display:flex;flex-direction:column;gap:6px}
+  .filter-group label{font-size:.8rem;color:var(--muted);font-weight:600}
+  select,input[type=text],input[type=number]{background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:inherit;font-size:.9rem;transition:border-color .15s}
+  select:focus,input:focus{outline:none;border-color:var(--accent)}
+  .year-slider-wrap{display:flex;align-items:center;gap:8px}
+  .year-slider-wrap input[type=number]{width:80px}
+  .checkbox-group{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding-top:4px}
+  .checkbox-group label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem;color:var(--text)}
+  .checkbox-group input{accent-color:var(--accent);width:16px;height:16px}
+
+  /* Time series selector */
+  .ts-controls{display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .ts-controls select{min-width:240px}
+
+  /* Table */
+  .table-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .table-toolbar .search-box{position:relative;flex:1;min-width:220px;max-width:360px}
+  .table-toolbar .search-box input{width:100%;padding-right:36px}
+  .table-toolbar .search-box::after{content:"🔍";position:absolute;right:12px;top:50%;transform:translateY(-50%);opacity:.5;font-size:.85rem}
+  .btn{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.85rem;font-weight:600;transition:background .15s}
+  .btn:hover{background:#2563eb}
+  .btn.secondary{background:var(--card2);border:1px solid var(--border)}
+  .btn.secondary:hover{background:#334155}
+
+  .table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:.85rem;direction:rtl}
+  thead th{background:var(--card2);color:#f8fafc;padding:12px 14px;text-align:right;font-weight:700;cursor:pointer;user-select:none;white-space:nowrap;border-bottom:2px solid var(--border);position:sticky;top:0}
+  thead th:hover{background:#2f4159}
+  thead th .sort-ind{opacity:.5;font-size:.7rem;margin-right:4px}
+  thead th.sorted .sort-ind{opacity:1;color:var(--accent2)}
+  tbody td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text);direction:ltr;text-align:right}
+  tbody td.text-rtl{direction:rtl;text-align:right}
+  tbody tr:hover{background:rgba(59,130,246,.08)}
+  tbody tr:last-child td{border-bottom:none}
+  .num{font-variant-numeric:tabular-nums}
+
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;direction:rtl}
+  .badge.elastic{background:rgba(239,68,68,.18);color:#fca5a5;border:1px solid rgba(239,68,68,.4)}
+  .badge.inelastic{background:rgba(34,197,94,.18);color:#86efac;border:1px solid rgba(34,197,94,.4)}
+  .badge.unit-elastic{background:rgba(234,179,8,.18);color:#fde68a;border:1px solid rgba(234,179,8,.4)}
+
+  .pagination{display:flex;justify-content:space-between;align-items:center;margin-top:14px;font-size:.85rem;color:var(--muted);flex-wrap:wrap;gap:10px}
+  .pagination .page-btns{display:flex;gap:6px}
+  .pagination button{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:.85rem}
+  .pagination button:hover:not(:disabled){border-color:var(--accent)}
+  .pagination button:disabled{opacity:.4;cursor:not-allowed}
+  .pagination button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* Heatmap */
+  .heatmap-wrap{overflow:auto;max-height:560px;border:1px solid var(--border);border-radius:10px}
+  table.heatmap{border-collapse:separate;border-spacing:3px;padding:6px}
+  table.heatmap th,table.heatmap td{padding:8px 10px;text-align:center;font-size:.78rem;border-radius:6px}
+  table.heatmap thead th{background:var(--card2);position:sticky;top:0;z-index:2}
+  table.heatmap tbody th{background:var(--card2);position:sticky;right:0;z-index:1;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+  table.heatmap td.cell{cursor:default;transition:transform .1s;direction:ltr;font-variant-numeric:tabular-nums;font-weight:600}
+  table.heatmap td.cell:hover{transform:scale(1.08);z-index:3;outline:2px solid var(--accent)}
+  table.heatmap td.null-cell{background:#2a3548;color:var(--muted)}
+
+  /* Footer */
+  footer.app-footer{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px 28px;margin-top:24px;text-align:center;color:var(--muted);font-size:.85rem;line-height:1.9}
+  footer.app-footer strong{color:#cbd5e1}
+  footer.app-footer .method-line{direction:ltr;text-align:center;margin-top:6px;font-size:.78rem;opacity:.85}
+
+  /* Responsive */
+  @media (max-width:1100px){
+    .kpi-strip{grid-template-columns:repeat(3,1fr)}
+    .chart-grid{grid-template-columns:1fr}
+    .filters-panel{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width:768px){
+    body{padding:14px}
+    .kpi-strip{grid-template-columns:repeat(2,1fr)}
+    .filters-panel{grid-template-columns:1fr}
+    .header-top{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-top">
+    <div class="title-block">
+      <h1>داشبورد کشش قیمتی تقاضا</h1>
+      <div class="subtitle">Price Elasticity of Demand Dashboard</div>
+    </div>
+    <div class="meta-block" id="meta-block">
+      <div class="meta-item"><span class="tag" id="meta-calendar">jalali</span></div>
+      <div class="meta-item">دامنه داده: <span id="meta-range"></span></div>
+      <div class="meta-item">Generated: <span id="meta-generated"></span></div>
+    </div>
+  </div>
+</header>
+
+<div id="loader">
+  <div class="spinner"></div>
+  <div>در حال بارگذاری داده‌ها...</div>
+</div>
+
+<div id="error-state">
+  <div class="err-icon">⚠️</div>
+  <div style="font-size:1.1rem;font-weight:600">بارگذاری فایل JSON ناموفق بود</div>
+  <div style="color:var(--muted);max-width:480px;text-align:center">احتمالاً فایل از طریق پروتکل file:// باز شده است. لطفاً به صورت دستی فایل JSON را انتخاب کنید یا فایل را از طریق یک سرور محلی باز کنید.</div>
+  <div class="file-input-wrap">
+    <div>انتخاب فایل <code>elasticity_results.json</code></div>
+    <input type="file" id="file-input" accept=".json,application/json">
+  </div>
+</div>
+
+<div id="app">
+  <!-- KPI Strip -->
+  <div class="kpi-strip" id="kpi-strip"></div>
+
+  <!-- Filters -->
+  <div class="section-card">
+    <div class="section-title"><span class="icon"></span> فیلترها / Filters</div>
+    <div class="filters-panel">
+      <div class="filter-group">
+        <label for="filter-subsubgroup">زیر گروه / Sub-subgroup</label>
+        <select id="filter-subsubgroup"><option value="__all__">همه / All</option></select>
+      </div>
+      <div class="filter-group">
+        <label>بازه سال / Year Range (Jalali)</label>
+        <div class="year-slider-wrap">
+          <input type="number" id="filter-year-min" min="1400" max="1405" value="1400">
+          <span>—</span>
+          <input type="number" id="filter-year-max" min="1400" max="1405" value="1405">
+        </div>
+      </div>
+      <div class="filter-group">
+        <label for="filter-minobs">حداقل مشاهدات / Min Observations</label>
+        <input type="number" id="filter-minobs" min="0" value="24">
+      </div>
+      <div class="filter-group">
+        <label>طبقه‌بندی / Classification</label>
+        <div class="checkbox-group">
+          <label><input type="checkbox" class="cls-filter" value="elastic" checked> کشش‌پذیر</label>
+          <label><input type="checkbox" class="cls-filter" value="inelastic" checked> کشش‌ناپذیر</label>
+          <label><input type="checkbox" class="cls-filter" value="unit-elastic" checked> واحد</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bar Chart + Scatter -->
+  <div class="chart-grid">
+    <div class="chart-box">
+      <div class="section-title"><span class="icon"></span> نمودار کشش / Elasticity Bar Chart</div>
+      <div class="chart-container" id="bar-chart"></div>
+    </div>
+    <div class="chart-box">
+      <div class="section-title"><span class="icon"></span> پراکنش ln / Scatter + Fitted Line</div>
+      <div class="chart-container" id="scatter-chart"></div>
+    </div>
+  </div>
+
+  <!-- Time series -->
+  <div class="chart-grid full">
+    <div class="chart-box">
+      <div class="section-title"><span class="icon"></span> سری زمانی / Dual-Axis Time Series</div>
+      <div class="ts-controls">
+        <label for="ts-selector">انتخاب زیر گروه:</label>
+        <select id="ts-selector"></select>
+      </div>
+      <div class="chart-container" id="time-chart" style="min-height:420px"></div>
+    </div>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="chart-grid full">
+    <div class="chart-box">
+      <div class="section-title"><span class="icon"></span> نقشه حرارتی کشش سالانه / Elasticity Heatmap</div>
+      <div class="heatmap-wrap" id="heatmap-wrap"></div>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="section-card">
+    <div class="section-title"><span class="icon"></span> جدول داده‌ها / Data Table</div>
+    <div class="table-toolbar">
+      <div class="search-box">
+        <input type="text" id="table-search" placeholder="جستجو بر اساس نام...">
+      </div>
+      <button class="btn" id="csv-export">⬇ خروجی CSV</button>
+    </div>
+    <div class="table-wrap">
+      <table id="data-table">
+        <thead><tr id="table-head"></tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <footer class="app-footer">
+    <div>منبع داده: <strong>داده‌های فروش و قیمت ۱۴۰۰-۱۴۰۵</strong></div>
+    <div>زمان تولید: <span id="footer-generated"></span></div>
+    <div class="method-line" id="footer-method"></div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Elasticity Dashboard - single-file vanilla JS app
+   ============================================================ */
+
+const PALETTE = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#06b6d4','#f97316','#ec4899','#14b8a6','#84cc16','#f43f5e','#8b5cf6','#0ea5e9','#facc15','#10b981','#fb7185'];
+const COLORS = { elastic:'#ef4444', inelastic:'#22c55e', 'unit-elastic':'#eab308' };
+const CLASS_FA = { elastic:'کشش‌پذیر', inelastic:'کشش‌ناپذیر', 'unit-elastic':'واحد' };
+
+let DATA = null;            // full parsed JSON
+let state = {
+  yearMin:1400, yearMax:1405, minObs:24,
+  classes:new Set(['elastic','inelastic','unit-elastic']),
+  subsubgroup:'__all__',
+  search:'', sortKey:'elasticity_beta', sortDir:'asc',
+  page:1, pageSize:10,
+  tsSelected:null
+};
+
+/* ---------- Number / date formatting helpers ---------- */
+function fmtNum(n, dec){
+  dec = dec===undefined?2:dec;
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  return Number(n).toLocaleString('fa-IR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+function fmtInt(n){
+  if(n===null||n===undefined||isNaN(n)) return '—';
+  return Number(n).toLocaleString('fa-IR');
+}
+function fmtPValue(p){
+  if(p===null||p===undefined||isNaN(p)) return '—';
+  if(p===0) return '۰٫۰۰۰';
+  if(p<0.001) return '<۰٫۰۰۱';
+  return Number(p).toLocaleString('fa-IR',{minimumFractionDigits:4,maximumFractionDigits:4});
+}
+function toFaDigits(s){ return String(s).replace(/[0-9]/g,function(d){return String.fromCharCode(0x06F0+ +d);}); }
+function jalaliLabel(y,m){ return toFaDigits(y)+'/'+toFaDigits(String(m).padStart(2,'0')); }
+
+/* ---------- Validation / loading ---------- */
+function validateData(d){
+  if(!d||typeof d!=='object') throw new Error('Invalid JSON structure');
+  if(!d.metadata) throw new Error('Missing metadata');
+  if(!d.pooled_regression) throw new Error('Missing pooled_regression');
+  if(!Array.isArray(d.subsubgroups)) throw new Error('Missing subsubgroups array');
+  return true;
+}
+
+function showError(msg){
+  document.getElementById('loader').style.display='none';
+  var es=document.getElementById('error-state');
+  es.style.display='flex';
+  if(msg){ var d=es.querySelector('.err-icon + div'); if(d) d.textContent = msg; }
+}
+function hideLoaderShowApp(){
+  document.getElementById('loader').style.display='none';
+  document.getElementById('app').style.display='block';
+}
+
+function loadJson(){
+  fetch('elasticity_results.json', {cache:'no-store'})
+    .then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.json(); })
+    .then(function(data){ validateData(data); DATA=data; hideLoaderShowApp(); init(); })
+    .catch(function(e){ console.warn('fetch failed:', e.message); showError(); });
+}
+
+/* Manual file fallback */
+document.getElementById('file-input').addEventListener('change', function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var data = JSON.parse(ev.target.result);
+      validateData(data);
+      DATA = data;
+      hideLoaderShowApp();
+      init();
+    }catch(err){
+      showError('فایل JSON نامعتبر است: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ---------- Filtered data accessor ---------- */
+function filteredSubsubgroups(){
+  if(!DATA) return [];
+  return DATA.subsubgroups.filter(function(s){
+    if(s.n_observations < state.minObs) return false;
+    if(!state.classes.has(s.classification)) return false;
+    if(state.subsubgroup !== '__all__' && s.subsubgroup_name !== state.subsubgroup) return false;
+    return true;
+  });
+}
+function yearsInRange(series){
+  return series.filter(function(m){ return m.year>=state.yearMin && m.year<=state.yearMax; });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  renderMeta();
+  renderKPI();
+  populateSelectors();
+  renderAll();
+  wireFilters();
+}
+
+function renderMeta(){
+  var m = DATA.metadata;
+  document.getElementById('meta-calendar').textContent = m.calendar || 'jalali';
+  document.getElementById('meta-range').textContent = m.data_range || '—';
+  document.getElementById('meta-generated').textContent = m.generated_at ? new Date(m.generated_at).toLocaleString('fa-IR') : '—';
+  document.getElementById('footer-generated').textContent = m.generated_at ? new Date(m.generated_at).toLocaleString('fa-IR') : '—';
+  document.getElementById('footer-method').textContent = (m.method||'') + (m.validation_method?(' | Validation: '+m.validation_method):'');
+}
+
+/* ============================================================
+   KPI STRIP
+   ============================================================ */
+function renderKPI(){
+  var p = DATA.pooled_regression, v = DATA.validation_regression, m = DATA.metadata;
+  var pooledColor = Math.abs(p.elasticity_beta)>1 ? 'kpi-red' : 'kpi-green';
+  var cards = [
+    {label:'کشش تجمیع‌شده (β)', sub:'Pooled Elasticity', val:fmtNum(p.elasticity_beta,2), cls:pooledColor},
+    {label:'R² (تجمیع‌شده)', sub:'Pooled R²', val:fmtNum(p.r_squared,4), cls:'kpi-accent'},
+    {label:'کشش اعتبارسنجی (β)', sub:'Validation β', val:fmtNum(v.elasticity_beta,2), cls:'kpi-accent'},
+    {label:'زیر گروه‌های تحلیل‌شده', sub:'Sub-subgroups', val:fmtInt(m.total_subsubgroups_analyzed), cls:'kpi-accent'},
+    {label:'محصولات تحلیل‌شده', sub:'Products', val:fmtInt(m.total_products_analyzed), cls:'kpi-accent'},
+    {label:'تعداد مشاهدات', sub:'N Observations', val:fmtInt(p.n_observations), cls:'kpi-accent'}
+  ];
+  var html = cards.map(function(c){
+    return '<div class="kpi-card">'+
+      '<div class="kpi-value '+c.cls+'">'+c.val+'</div>'+
+      '<div class="kpi-label">'+c.label+'</div>'+
+      '<div class="kpi-sub">'+c.sub+'</div>'+
+    '</div>';
+  }).join('');
+  document.getElementById('kpi-strip').innerHTML = html;
+}
+
+/* ============================================================
+   SELECTORS (filter + time series)
+   ============================================================ */
+function populateSelectors(){
+  var names = DATA.subsubgroups.map(function(s){return s.subsubgroup_name;});
+  var filterSel = document.getElementById('filter-subsubgroup');
+  var tsSel = document.getElementById('ts-selector');
+  names.forEach(function(n){
+    filterSel.add(new Option(n,n));
+    tsSel.add(new Option(n,n));
+  });
+  state.tsSelected = DATA.subsubgroups[0].subsubgroup_name;
+  tsSel.value = state.tsSelected;
+  tsSel.addEventListener('change', function(e){ state.tsSelected=e.target.value; renderTimeSeries(); });
+}
+
+/* ============================================================
+   RENDER ALL
+   ============================================================ */
+function renderAll(){
+  renderBarChart();
+  renderScatter();
+  renderTimeSeries();
+  renderHeatmap();
+  renderTable();
+}
+
+/* ============================================================
+   BAR CHART (Plotly)
+   ============================================================ */
+function renderBarChart(){
+  var items = filteredSubsubgroups().slice().sort(function(a,b){return a.elasticity_beta-b.elasticity_beta;});
+  var el = document.getElementById('bar-chart');
+  if(!items.length){ Plotly.purge(el); el.innerHTML='<div style="text-align:center;color:var(--muted);padding:60px">داده‌ای برای نمایش وجود ندارد</div>'; return; }
+
+  var y = items.map(function(s){return s.subsubgroup_name;});
+  var x = items.map(function(s){return s.elasticity_beta;});
+  var colors = items.map(function(s){return COLORS[s.classification]||'#64748b';});
+  var errMinus = items.map(function(s){return s.elasticity_beta - s.std_error;});
+  var errPlus  = items.map(function(s){return s.elasticity_beta + s.std_error;});
+
+  var trace = {
+    type:'bar', orientation:'h', x:x, y:y, marker:{color:colors},
+    error_x:{type:'data', symmetric:false,
+      array:items.map(function(s){return s.std_error;}),
+      arrayminus:items.map(function(s){return s.std_error;}),
+      thickness:1.5, color:'#cbd5e1'},
+    customdata: items.map(function(s){return [fmtNum(s.std_error,3), fmtPValue(s.p_value), fmtNum(s.r_squared,3), fmtInt(s.n_observations), CLASS_FA[s.classification]||s.classification];}),
+    hovertemplate:'<b>%{y}</b><br>β = %{x:.3f}<br>SE = %{customdata[0]}<br>p = %{customdata[1]}<br>R² = %{customdata[2]}<br>n = %{customdata[3]}<br>طبقه: %{customdata[4]}<extra></extra>'
+  };
+  var xmin = Math.min.apply(null, errMinus), xmax = Math.max.apply(null, errPlus);
+  var pad = (xmax-xmin)*0.1 || 0.5;
+  var layout = baseLayout({
+    margin:{l:160,r:30,t:20,b:50},
+    xaxis:{title:'کشش قیمتی (β)', zeroline:true, zerolinecolor:'#475569', gridcolor:'#334155', range:[xmin-pad, xmax+pad]},
+    yaxis:{gridcolor:'#334155', automargin:true, tickfont:{size:11}},
+    height: Math.max(380, items.length*38+60),
+    showlegend:false
+  });
+  Plotly.react(el,[trace],layout,{responsive:true,displayModeBar:false});
+}
+
+/* ============================================================
+   SCATTER + fitted line (pooled)
+   ============================================================ */
+function renderScatter(){
+  var el = document.getElementById('scatter-chart');
+  var items = filteredSubsubgroups();
+  if(!items.length){ Plotly.purge(el); el.innerHTML='<div style="text-align:center;color:var(--muted);padding:60px">داده‌ای برای نمایش وجود ندارد</div>'; return; }
+
+  var traces = [];
+  items.forEach(function(s, idx){
+    var pts = s.scatter_data || [];
+    // filter by year range using monthly_series alignment
+    if(s.monthly_series && s.monthly_series.length === pts.length){
+      pts = pts.filter(function(_, i){
+        var m = s.monthly_series[i];
+        return m && m.year>=state.yearMin && m.year<=state.yearMax;
+      });
+    }
+    if(!pts.length) return;
+    traces.push({
+      type:'scatter', mode:'markers',
+      x:pts.map(function(p){return p.ln_price;}), y:pts.map(function(p){return p.ln_quantity;}),
+      name:s.subsubgroup_name,
+      marker:{color:PALETTE[idx%PALETTE.length], size:6, opacity:.7},
+      text:pts.map(function(){return s.subsubgroup_name;}),
+      hovertemplate:'<b>'+s.subsubgroup_name+'</b><br>ln(قیمت)=%{x:.3f}<br>ln(تقاضا)=%{y:.3f}<extra></extra>'
+    });
+  });
+
+  // Pooled fitted line: use pooled regression beta as slope, intercept from overall mean
+  var allX=[], allY=[];
+  traces.forEach(function(t){ t.x.forEach(function(v){allX.push(v);}); t.y.forEach(function(v){allY.push(v);}); });
+  if(allX.length){
+    var sumX=0,sumY=0;
+    for(var i=0;i<allX.length;i++){sumX+=allX[i];sumY+=allY[i];}
+    var meanX = sumX/allX.length, meanY = sumY/allY.length;
+    var slope = DATA.pooled_regression.elasticity_beta;
+    var intercept = meanY - slope*meanX;
+    var xMin = Math.min.apply(null, allX), xMax = Math.max.apply(null, allX);
+    traces.push({
+      type:'scatter', mode:'lines',
+      x:[xMin,xMax], y:[intercept+slope*xMin, intercept+slope*xMax],
+      name:'خط رگرسیون تجمیعی (β='+fmtNum(slope,2)+')',
+      line:{color:'#f8fafc', width:3, dash:'dash'},
+      hoverinfo:'skip'
+    });
+  }
+
+  var layout = baseLayout({
+    margin:{l:55,r:20,t:30,b:55},
+    xaxis:{title:'ln(قیمت)', gridcolor:'#334155', zerolinecolor:'#475569'},
+    yaxis:{title:'ln(تقاضا)', gridcolor:'#334155', zerolinecolor:'#475569'},
+    legend:{font:{size:10}, orientation:'h', y:-0.25, x:0.5, xanchor:'center'},
+    annotations:[{text:'β = '+fmtNum(DATA.pooled_regression.elasticity_beta,2), showarrow:false, xref:'paper', yref:'paper', x:0.02, y:0.98, font:{color:'#f8fafc',size:14}, bgcolor:'rgba(15,23,42,.7)', bordercolor:'#334155', borderwidth:1, borderpad:6}],
+    height:420
+  });
+  Plotly.react(el,traces,layout,{responsive:true,displayModeBar:false});
+}
+
+/* ============================================================
+   TIME SERIES (dual axis)
+   ============================================================ */
+function renderTimeSeries(){
+  var el = document.getElementById('time-chart');
+  var s = DATA.subsubgroups.filter(function(x){return x.subsubgroup_name===state.tsSelected;})[0] || DATA.subsubgroups[0];
+  if(!s){ Plotly.purge(el); return; }
+  var series = yearsInRange(s.monthly_series||[]);
+  if(!series.length){ Plotly.purge(el); el.innerHTML='<div style="text-align:center;color:var(--muted);padding:60px">داده‌ای در این بازه سال وجود ندارد</div>'; return; }
+
+  var labels = series.map(function(m){return jalaliLabel(m.year,m.month);});
+  var qty = series.map(function(m){return m.quantity;});
+  var price = series.map(function(m){return m.weighted_price;});
+
+  var traces = [
+    {type:'bar', x:labels, y:qty, name:'تقاضا (Quantity)', marker:{color:'rgba(59,130,246,.55)'}, yaxis:'y', hovertemplate:'%{x}<br>تقاضا: %{y:,.0f}<extra></extra>'},
+    {type:'scatter', mode:'lines+markers', x:labels, y:price, name:'قیمت موزون (Price)', line:{color:'#ef4444',width:2.5}, yaxis:'y2', hovertemplate:'%{x}<br>قیمت: %{y:,.0f}<extra></extra>'}
+  ];
+  var layout = baseLayout({
+    margin:{l:60,r:70,t:20,b:70},
+    xaxis:{title:'زمان (سال/ماه شمسی)', gridcolor:'#334155', tickangle:-45, tickfont:{size:10}},
+    yaxis:{title:'تقاضا', gridcolor:'#334155', side:'right'},
+    yaxis2:{title:'قیمت موزون', overlaying:'y', side:'left', gridcolor:'rgba(0,0,0,0)'},
+    legend:{orientation:'h', y:1.08, x:0.5, xanchor:'center'},
+    height:440,
+    barmode:'group'
+  });
+  Plotly.react(el,traces,layout,{responsive:true,displayModeBar:false});
+}
+
+/* ============================================================
+   HEATMAP (custom grid)
+   ============================================================ */
+function renderHeatmap(){
+  var wrap = document.getElementById('heatmap-wrap');
+  var items = filteredSubsubgroups();
+  // gather all years present
+  var yearSet = {};
+  items.forEach(function(s){ (s.yearly_elasticity||[]).forEach(function(ye){ yearSet[ye.year]=true; }); });
+  var years = Object.keys(yearSet).map(Number).filter(function(y){return y>=state.yearMin && y<=state.yearMax;}).sort(function(a,b){return a-b;});
+  if(!years.length) years = Object.keys(yearSet).map(Number).sort(function(a,b){return a-b;});
+
+  if(!items.length){ wrap.innerHTML='<div style="text-align:center;color:var(--muted);padding:40px">داده‌ای برای نمایش وجود ندارد</div>'; return; }
+
+  function cellColor(v){
+    if(v===null||v===undefined||isNaN(v)) return '#2a3548';
+    var t = Math.max(-2,Math.min(2,v))/2; // -1..1
+    if(t>=0){ var a=0.15+t*0.6; return 'rgba(34,197,94,'+a+')'; }
+    else { var b=0.15+(-t)*0.6; return 'rgba(239,68,68,'+b+')'; }
+  }
+  function cellText(v){
+    if(v===null||v===undefined||isNaN(v)) return '—';
+    return toFaDigits(v.toFixed(2));
+  }
+
+  var html = '<table class="heatmap"><thead><tr><th>زیر گروه ＼ سال</th>';
+  years.forEach(function(y){ html += '<th>'+toFaDigits(String(y))+'</th>'; });
+  html += '</tr></thead><tbody>';
+  items.forEach(function(s){
+    html += '<tr><th title="'+s.subsubgroup_name+'">'+s.subsubgroup_name+'</th>';
+    years.forEach(function(y){
+      var ye = (s.yearly_elasticity||[]).filter(function(e){return e.year===y;})[0];
+      var v = ye ? ye.elasticity : null;
+      var n = ye ? ye.n_obs : null;
+      if(v===null){
+        html += '<td class="cell null-cell" title="'+s.subsubgroup_name+' | '+toFaDigits(y)+' | داده‌ای موجود نیست">—</td>';
+      }else{
+        var title = s.subsubgroup_name+' | سال '+toFaDigits(y)+' | کشش: '+toFaDigits(v.toFixed(3))+' | n='+(n?toFaDigits(n):'—');
+        html += '<td class="cell" style="background:'+cellColor(v)+';color:#f8fafc" title="'+title+'">'+cellText(v)+'</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+/* ============================================================
+   DATA TABLE
+   ============================================================ */
+var TABLE_COLS = [
+  {key:'subsubgroup_name', fa:'نام زیر گروه', type:'text', align:'rtl'},
+  {key:'subgroup_name', fa:'گروه فرعی', type:'text', align:'rtl'},
+  {key:'elasticity_beta', fa:'β', type:'num', align:'ltr'},
+  {key:'std_error', fa:'SE', type:'num', align:'ltr'},
+  {key:'p_value', fa:'p-value', type:'pval', align:'ltr'},
+  {key:'r_squared', fa:'R²', type:'num', align:'ltr'},
+  {key:'n_observations', fa:'n', type:'int', align:'ltr'},
+  {key:'classification', fa:'طبقه‌بندی', type:'badge', align:'rtl'},
+  {key:'revenue_share', fa:'سهم درآمد', type:'pct', align:'ltr'}
+];
+
+function renderTable(){
+  var head = document.getElementById('table-head');
+  var body = document.getElementById('table-body');
+  // header
+  head.innerHTML = TABLE_COLS.map(function(c){
+    var sorted = state.sortKey===c.key ? 'sorted':'';
+    var ind = state.sortKey===c.key ? (state.sortDir==='asc'?'▲':'▼') : '↕';
+    return '<th class="'+sorted+'" data-key="'+c.key+'">'+c.fa+' <span class="sort-ind">'+ind+'</span></th>';
+  }).join('');
+  Array.prototype.forEach.call(head.querySelectorAll('th'), function(th){
+    th.addEventListener('click', function(){
+      var k = th.dataset.key;
+      if(state.sortKey===k){ state.sortDir = state.sortDir==='asc'?'desc':'asc'; }
+      else { state.sortKey=k; state.sortDir = (k==='elasticity_beta'||k==='p_value')?'asc':'desc'; }
+      state.page=1;
+      renderTable();
+    });
+  });
+
+  // data: filtered + searched
+  var rows = filteredSubsubgroups();
+  if(state.search){
+    var q = state.search.trim();
+    rows = rows.filter(function(s){ return (s.subsubgroup_name||'').indexOf(q)>=0 || (s.subgroup_name||'').indexOf(q)>=0; });
+  }
+  // sort
+  rows.sort(function(a,b){
+    var va=a[state.sortKey], vb=b[state.sortKey];
+    if(state.sortKey==='classification'){ va=va||''; vb=vb||''; }
+    if(typeof va==='string'){ return state.sortDir==='asc'? va.localeCompare(vb,'fa') : vb.localeCompare(va,'fa'); }
+    va=Number(va)||0; vb=Number(vb)||0;
+    return state.sortDir==='asc'? va-vb : vb-va;
+  });
+
+  // pagination
+  var total = rows.length;
+  var totalPages = Math.max(1, Math.ceil(total/state.pageSize));
+  if(state.page>totalPages) state.page=totalPages;
+  var start=(state.page-1)*state.pageSize;
+  var pageRows = rows.slice(start, start+state.pageSize);
+
+  body.innerHTML = pageRows.map(function(s){
+    return '<tr>'+TABLE_COLS.map(function(c){
+      var val = s[c.key];
+      if(c.type==='badge'){
+        var cls = s.classification;
+        return '<td class="text-rtl"><span class="badge '+cls+'">'+(CLASS_FA[cls]||cls)+'</span></td>';
+      }
+      if(c.type==='num') return '<td class="num">'+fmtNum(val,3)+'</td>';
+      if(c.type==='int') return '<td class="num">'+fmtInt(val)+'</td>';
+      if(c.type==='pct') return '<td class="num">'+(val!=null?fmtNum(val*100,1)+'٪':'—')+'</td>';
+      if(c.type==='pval') return '<td class="num">'+fmtPValue(val)+'</td>';
+      return '<td class="text-rtl">'+(val!=null?val:'—')+'</td>';
+    }).join('')+'</tr>';
+  }).join('');
+
+  // pagination controls
+  var pg = document.getElementById('pagination');
+  var btns='';
+  for(var i=1;i<=totalPages;i++){
+    btns += '<button class="'+(i===state.page?'active':'')+'" data-p="'+i+'">'+toFaDigits(i)+'</button>';
+  }
+  pg.innerHTML =
+    '<div>نمایش '+(total? toFaDigits(start+1):0)+' تا '+toFaDigits(Math.min(start+state.pageSize,total))+' از '+toFaDigits(total)+' رکورد</div>'+
+    '<div class="page-btns">'+
+      '<button data-p="prev" '+(state.page<=1?'disabled':'')+'>قبلی</button>'+
+      btns+
+      '<button data-p="next" '+(state.page>=totalPages?'disabled':'')+'>بعدی</button>'+
+    '</div>';
+  Array.prototype.forEach.call(pg.querySelectorAll('button'), function(b){
+    b.addEventListener('click', function(){
+      var p=b.dataset.p;
+      if(p==='prev') state.page=Math.max(1,state.page-1);
+      else if(p==='next') state.page=Math.min(totalPages,state.page+1);
+      else state.page=+p;
+      renderTable();
+    });
+  });
+}
+
+/* CSV export */
+function exportCSV(){
+  var rows = filteredSubsubgroups();
+  var header = ['subsubgroup_name','subgroup_name','main_group_name','elasticity_beta','std_error','p_value','r_squared','n_observations','classification','revenue_share'];
+  var lines = [header.join(',')];
+  rows.forEach(function(s){
+    var cells = header.map(function(k){
+      var v = s[k];
+      if(v===null||v===undefined) v='';
+      v = String(v);
+      if(v.indexOf(',')>=0||v.indexOf('"')>=0) v = '"'+v.replace(/"/g,'""')+'"';
+      return v;
+    });
+    lines.push(cells.join(','));
+  });
+  var blob = new Blob(['\ufeff'+lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href=url; a.download='elasticity_subsubgroups.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ============================================================
+   FILTERS WIRING
+   ============================================================ */
+function wireFilters(){
+  document.getElementById('filter-subsubgroup').addEventListener('change', function(e){
+    state.subsubgroup = e.target.value;
+    // if a specific subsubgroup selected, also set time series to it
+    if(e.target.value!=='__all__'){
+      state.tsSelected = e.target.value;
+      document.getElementById('ts-selector').value = e.target.value;
+    }
+    renderAll();
+  });
+  document.getElementById('filter-year-min').addEventListener('change', function(e){
+    var v=parseInt(e.target.value)||1400;
+    v=Math.max(1400,Math.min(1405,v));
+    state.yearMin=v; e.target.value=v;
+    if(state.yearMin>state.yearMax){ state.yearMax=state.yearMin; document.getElementById('filter-year-max').value=state.yearMax; }
+    renderAll();
+  });
+  document.getElementById('filter-year-max').addEventListener('change', function(e){
+    var v=parseInt(e.target.value)||1405;
+    v=Math.max(1400,Math.min(1405,v));
+    state.yearMax=v; e.target.value=v;
+    if(state.yearMax<state.yearMin){ state.yearMin=state.yearMax; document.getElementById('filter-year-min').value=state.yearMin; }
+    renderAll();
+  });
+  document.getElementById('filter-minobs').addEventListener('change', function(e){
+    state.minObs = parseInt(e.target.value)||0;
+    renderAll();
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.cls-filter'), function(cb){
+    cb.addEventListener('change', function(){
+      if(cb.checked) state.classes.add(cb.value); else state.classes.delete(cb.value);
+      if(state.classes.size===0){ cb.checked=true; state.classes.add(cb.value); }
+      renderAll();
+    });
+  });
+  document.getElementById('table-search').addEventListener('input', function(e){
+    state.search = e.target.value; state.page=1; renderTable();
+  });
+  document.getElementById('csv-export').addEventListener('click', exportCSV);
+
+  // re-render charts on window resize (debounced)
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt=setTimeout(function(){ renderBarChart(); renderScatter(); renderTimeSeries(); }, 250);
+  });
+}
+
+/* ---------- shared Plotly layout defaults ---------- */
+function baseLayout(overrides){
+  var base = {
+    paper_bgcolor:'rgba(0,0,0,0)',
+    plot_bgcolor:'rgba(0,0,0,0)',
+    font:{family:'Vazirmatn, sans-serif', color:'#e2e8f0', size:12},
+    margin:{l:50,r:20,t:30,b:50}
+  };
+  for(var k in overrides){ base[k]=overrides[k]; }
+  return base;
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+loadJson();
+</script>
+</body>
+</html>
