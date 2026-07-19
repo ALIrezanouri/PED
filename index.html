@@ -63,7 +63,7 @@
   .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px}
   .chart-grid.full{grid-template-columns:1fr}
   .chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
-  .chart-container{width:100%;min-height:380px;direction:ltr}
+  .chart-container{width:100%;min-height:380px;direction:ltr;position:relative;overflow:hidden}
 
   /* Filters panel */
   .filters-panel{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
@@ -219,6 +219,15 @@
     <div class="chart-box">
       <div class="section-title"><span class="icon"></span> پراکنش ln / Scatter + Fitted Line</div>
       <div class="chart-container" id="scatter-chart"></div>
+    </div>
+  </div>
+
+  <!-- Bubble Chart: Revenue Implications Matrix -->
+  <div class="chart-grid full">
+    <div class="chart-box">
+      <div class="section-title"><span class="icon"></span> ماتریس پیامدهای درآمدی / Revenue Implications Matrix</div>
+      <div class="section-desc">اندازه حباب متناسب با تعداد مشاهدات (n) است — رنگ بر اساس طبقه‌بندی کشش. محور افقی: کشش قیمتی (β)، محور عمودی: سهم درآمد.</div>
+      <div class="chart-container" id="bubble-chart" style="height:460px;min-height:460px"></div>
     </div>
   </div>
 
@@ -432,6 +441,7 @@ function populateSelectors(){
 function renderAll(){
   renderBarChart();
   renderScatter();
+  renderBubbleChart();
   renderTimeSeries();
   renderHeatmap();
   renderTable();
@@ -529,6 +539,109 @@ function renderScatter(){
     height:420
   });
   Plotly.react(el,traces,layout,{responsive:true,displayModeBar:false});
+}
+
+/* ============================================================
+   BUBBLE CHART — Revenue Implications Matrix
+   X = elasticity_beta, Y = revenue_share (%), size ∝ n_observations
+   ============================================================ */
+function renderBubbleChart(){
+  var el = document.getElementById('bubble-chart');
+  var items = filteredSubsubgroups();
+  if(!items.length){ Plotly.purge(el); el.innerHTML='<div style="text-align:center;color:var(--muted);padding:60px">داده‌ای برای نمایش وجود ندارد</div>'; return; }
+
+  // Group by classification so the legend is meaningful
+  var byClass = { elastic:[], inelastic:[], 'unit-elastic':[] };
+  items.forEach(function(s){
+    var cls = s.classification || 'unit-elastic';
+    if(!byClass[cls]) byClass[cls] = [];
+    byClass[cls].push(s);
+  });
+
+  // Compute size scaling: map n_observations to a pixel range [10, 60]
+  var ns = items.map(function(s){ return s.n_observations || 0; });
+  var nMin = Math.min.apply(null, ns), nMax = Math.max.apply(null, ns);
+  function sizeFor(n){
+    if(!nMax || nMax===nMin) return 32; // uniform if no spread
+    var t = (n - nMin) / (nMax - nMin); // 0..1
+    return 16 + t * 44;                 // 16..60 px (min 16 so text label fits inside)
+  }
+
+  var traces = [];
+  ['elastic','inelastic','unit-elastic'].forEach(function(cls){
+    var arr = byClass[cls];
+    if(!arr || !arr.length) return;
+    traces.push({
+      type:'scatter', mode:'markers+text',
+      x: arr.map(function(s){ return s.elasticity_beta; }),
+      y: arr.map(function(s){ return (s.revenue_share!=null ? s.revenue_share*100 : 0); }),
+      name: CLASS_FA[cls] || cls,
+      // Short name shown ON the bubble (visible without hover)
+      text: arr.map(function(s){ return s.subsubgroup_name; }),
+      textposition:'middle center',
+      textfont:{ size:9, color:'#ffffff', family:'Vazirmatn, sans-serif' },
+      // Detailed string for the hover title
+      hovertext: arr.map(function(s){
+        return s.subsubgroup_name + ' | β=' + fmtNum(s.elasticity_beta,2) +
+          ' | سهم درآمد=' + fmtNum(s.revenue_share!=null?s.revenue_share*100:0,1) + '٪' +
+          ' | n=' + fmtInt(s.n_observations);
+      }),
+      customdata: arr.map(function(s){ return [fmtNum(s.elasticity_beta,3), fmtNum(s.std_error,3), fmtPValue(s.p_value), fmtNum(s.r_squared,3), fmtInt(s.n_observations), CLASS_FA[s.classification]||s.classification]; }),
+      marker:{
+        color: COLORS[cls] || '#64748b',
+        size: arr.map(function(s){ return sizeFor(s.n_observations || 0); }),
+        opacity: 0.78,
+        line:{ color:'#0f172a', width:1 },
+        sizemode:'diameter'
+      },
+      hovertemplate:'<b>%{hovertext}</b><br>β = %{x:.3f}<br>سهم درآمد = %{y:.1f}٪<br>SE = %{customdata[1]}<br>p = %{customdata[2]}<br>R² = %{customdata[3]}<br>n = %{customdata[4]}<br>طبقه: %{customdata[5]}<extra></extra>'
+    });
+  });
+
+  // Reference vertical line at β = -1 (elastic/inelastic boundary)
+  var shapes = [{
+    type:'line', xref:'x', yref:'paper',
+    x0:-1, x1:-1, y0:0, y1:1,
+    line:{ color:'#64748b', width:1.5, dash:'dot' }
+  }];
+
+  // Axis ranges with padding
+  var xs = items.map(function(s){ return s.elasticity_beta; });
+  var ys = items.map(function(s){ return (s.revenue_share!=null?s.revenue_share*100:0); });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var xPad = (xMax-xMin)*0.12 || 0.5;
+  var yPad = (yMax-yMin)*0.15 || 1;
+
+  var layout = baseLayout({
+    autosize: true,
+    margin:{l:70,r:30,t:30,b:60},
+    xaxis:{
+      title:'کشش قیمتی (β) — Elasticity',
+      gridcolor:'#334155', zerolinecolor:'#475569',
+      range:[xMin-xPad, xMax+xPad],
+      tickfont:{size:11}
+    },
+    yaxis:{
+      title:'سهم درآمد (٪) — Revenue Share',
+      gridcolor:'#334155', zerolinecolor:'#475569',
+      range:[Math.max(0, yMin-yPad), yMax+yPad],
+      tickfont:{size:11}
+    },
+    legend:{
+      orientation:'h', y:1.06, x:0.5, xanchor:'center',
+      font:{size:11}
+    },
+    shapes: shapes,
+    annotations:[{
+      text:'β = ۱- (مرز کشش‌پذیر/ناپذیر)',
+      x:-1, y:1, yref:'paper',
+      showarrow:false, font:{color:'#94a3b8', size:10},
+      xanchor:'right', yanchor:'top'
+    }]
+  });
+  // autosize: fill the container's height (min-height:460px) — no internal scroll
+  Plotly.react(el, traces, layout, {responsive:true, displayModeBar:false, scrollZoom:false});
 }
 
 /* ============================================================
@@ -773,7 +886,7 @@ function wireFilters(){
   var rt;
   window.addEventListener('resize', function(){
     clearTimeout(rt);
-    rt=setTimeout(function(){ renderBarChart(); renderScatter(); renderTimeSeries(); }, 250);
+    rt=setTimeout(function(){ renderBarChart(); renderScatter(); renderBubbleChart(); renderTimeSeries(); }, 250);
   });
 }
 
